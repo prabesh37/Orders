@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b7a4b"><title>Dippradip Orders</title>
+<style>
+:root{--bg:#f4f6f5;--cd:#fff;--tx:#1a1f1c;--mu:#667069;--ac:#0b7a4b;--bd:#dde3df;--er:#c0392b;--wa:#b7791f}
+@media(prefers-color-scheme:dark){:root{--bg:#121513;--cd:#1b201d;--tx:#e8ece9;--mu:#9aa59e;--ac:#34c38f;--bd:#2b322e;--er:#ef6b5c;--wa:#e0a84a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,sans-serif;padding:env(safe-area-inset-top) 0 80px}
+header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px}h1{font-size:18px;margin:0}
+main{padding:0 14px;max-width:640px;margin:auto}.c{background:var(--cd);border:1px solid var(--bd);border-radius:12px;padding:12px;margin:10px 0}
+.r{display:flex;justify-content:space-between;align-items:center;gap:8px}.g{display:grid;gap:8px}.mu{color:var(--mu)}
+input,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+button{padding:11px 14px;border-radius:8px;border:0;background:var(--ac);color:#fff;font:inherit;font-weight:600}
+button.s{background:none;border:1px solid var(--bd);color:var(--tx)}button.d{background:none;color:var(--er);border:1px solid var(--er)}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--cd);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;color:var(--mu);border-radius:0;padding:14px 2px}nav button.on{color:var(--ac)}
+.b{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor}.pending{color:var(--wa)}.confirmed{color:var(--ac)}.cancelled{color:var(--er)}
+.low{color:var(--er)}.q{width:80px}
+</style></head><body>
+<header><h1>🐄 Dippradip Orders</h1><span id="me" class="mu"></span></header>
+<main id="m"></main><nav id="n"></nav>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const cfg={apiKey:"AIzaSyARf4TKwUjcVocACVTqcxIaPHOSidIttfk",authDomain:"plan-301.firebaseapp.com",projectId:"plan-301",storageBucket:"plan-301.firebasestorage.app",messagingSenderId:"87661579833",appId:"1:87661579833:web:86c0c42fced18bb2e887e8"};
+const DOM='@dippradip.app',ADMIN='prabesh'+DOM;
+firebase.initializeApp(cfg);const auth=firebase.auth(),db=firebase.firestore();
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const rs=n=>'Rs '+(+n||0).toLocaleString();
+let me=null,isAdmin=false,tab='new',prods=[],orders=[],staff=[],cart=[],shop='',unsubs=[];
+auth.onAuthStateChanged(async u=>{unsubs.forEach(f=>f());unsubs=[];me=u;
+  if(!u){$('#n').innerHTML='';$('#me').innerHTML='';return login()}
+  isAdmin=u.email===ADMIN;let name=isAdmin?'Admin':u.email.split('@')[0];
+  if(!isAdmin){try{const d=await db.doc('users/'+u.uid).get();if(d.exists)name=d.data().name}catch(e){}}
+  me.dn=name;tab=isAdmin?'orders':'new';
+  $('#me').innerHTML=esc(name)+' · <a href="#" onclick="auth.signOut();return false">Logout</a>';
+  unsubs.push(db.collection('products').orderBy('name').onSnapshot(s=>{prods=s.docs.map(d=>({id:d.id,...d.data()}));draw()},er));
+  const oq=isAdmin?db.collection('orders'):db.collection('orders').where('uid','==',u.uid);
+  unsubs.push(oq.onSnapshot(s=>{orders=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.at-a.at);draw()},er));
+  if(isAdmin)unsubs.push(db.collection('users').onSnapshot(s=>{staff=s.docs.map(d=>({id:d.id,...d.data()}));draw()},er));
+  draw()});
+function er(e){console.error(e);alert('Error: '+e.message)}
+function login(){$('#m').innerHTML=`<div class="c g"><b>Login</b><input id="u" placeholder="Username (your username)" autocapitalize="none"><input id="p" type="password" placeholder="Password"><button onclick="doLogin()">Login</button><small class="mu" id="le"></small></div>`}
+async function doLogin(){const u=$('#u').value.trim().toLowerCase(),p=$('#p').value;if(!u||!p)return;
+  try{await auth.signInWithEmailAndPassword(u+DOM,p)}catch(e){$('#le').textContent='Wrong username or password'}}
+function draw(){if(!me)return;
+  const t=isAdmin?[['orders','Orders'],['products','Stock'],['staff','Salesmen'],['backup','Backup'],['new','New']]:[['new','New order'],['mine','My orders']];
+  $('#n').innerHTML=t.map(([k,l])=>`<button class="${tab===k?'on':''}" onclick="tab='${k}';draw()">${l}</button>`).join('');
+  const f={new:vNew,mine:()=>vOrders(false),orders:()=>vOrders(true),products:vProds,staff:vStaff,backup:vBackup}[tab];$('#m').innerHTML=f()}
+// ---- new order
+function vNew(){const tot=cart.reduce((a,i)=>a+i.rate*i.qty,0);
+  return `<div class="c g"><input placeholder="Shop / customer name" value="${esc(shop)}" oninput="shop=this.value">
+  <select id="sp"><option value="">Select product</option>${prods.map(p=>`<option value="${p.id}">${esc(p.name)} — ${rs(p.rate)}/${esc(p.unit)} (${p.stock} left)</option>`).join('')}</select>
+  <div class="r"><input id="sq" class="q" type="number" min="1" inputmode="decimal" placeholder="Qty"><button onclick="addI()">Add item</button></div></div>`+
+  cart.map((i,x)=>`<div class="c r"><div><b>${esc(i.name)}</b><br><small class="mu">${i.qty} ${esc(i.unit)} × ${rs(i.rate)}</small></div><div><b>${rs(i.rate*i.qty)}</b> <button class="d" onclick="cart.splice(${x},1);draw()">✕</button></div></div>`).join('')+
+  `<div class="c r"><b>Total ${rs(tot)}</b><button onclick="place()">Submit order</button></div>`}
+function addI(){const p=prods.find(x=>x.id===$('#sp').value),q=+$('#sq').value;if(!p||!(q>0))return alert('Choose product and quantity');
+  if(q>p.stock)return alert('Only '+p.stock+' '+p.unit+' in stock');cart.push({pid:p.id,name:p.name,unit:p.unit,rate:p.rate,qty:q});draw()}
+async function place(){if(!shop.trim())return alert('Enter shop name');if(!cart.length)return alert('Add items');
+  try{await db.collection('orders').add({shop:shop.trim(),items:cart,total:cart.reduce((a,i)=>a+i.rate*i.qty,0),status:'pending',uid:me.uid,sname:me.dn,at:Date.now()});
+    cart=[];shop='';tab=isAdmin?'orders':'mine';draw()}catch(e){er(e)}}
+// ---- orders
+function vOrders(all){if(!orders.length)return '<p class="mu">No orders yet.</p>';
+  return orders.map(o=>`<div class="c"><div class="r"><b>${esc(o.shop)}</b><span class="b ${o.status}">${o.status}</span></div>
+  <small class="mu">${new Date(o.at).toLocaleString()} · ${esc(o.sname)}</small>
+  <div style="margin:8px 0">${o.items.map(i=>`${esc(i.name)} — ${i.qty} ${esc(i.unit)} × ${rs(i.rate)}`).join('<br>')}</div>
+  <div class="r"><b>${rs(o.total)}</b>${isAdmin&&o.status==='pending'?`<span><button onclick="conf('${o.id}')">Confirm</button> <button class="d" onclick="cancelO('${o.id}')">Cancel</button></span>`:''}</div></div>`).join('')}
+async function conf(id){try{await db.runTransaction(async t=>{const or=db.doc('orders/'+id),o=await t.get(or);if(o.data().status!=='pending')return;
+  const ps=await Promise.all(o.data().items.map(i=>t.get(db.doc('products/'+i.pid))));
+  o.data().items.forEach((i,k)=>{if(!ps[k].exists||ps[k].data().stock<i.qty)throw Error('Not enough stock: '+i.name)});
+  o.data().items.forEach((i,k)=>t.update(ps[k].ref,{stock:ps[k].data().stock-i.qty}));t.update(or,{status:'confirmed'})})}catch(e){alert(e.message)}}
+async function cancelO(id){if(confirm('Cancel this order?'))db.doc('orders/'+id).update({status:'cancelled'}).catch(er)}
+// ---- products
+function vProds(){return `<div class="c g"><b>Add product</b><input id="pn" placeholder="Product name"><input id="pu" placeholder="Unit (kg, bag, litre, pcs)"><input id="pr" type="number" inputmode="decimal" placeholder="Rate"><input id="ps" type="number" inputmode="decimal" placeholder="Opening stock"><button onclick="addP()">Save product</button></div>`+
+  prods.map(p=>`<div class="c"><div class="r"><b>${esc(p.name)}</b><button class="d" onclick="delP('${p.id}')">Delete</button></div>
+  <div class="r" style="margin-top:8px"><small>Rate/${esc(p.unit)}</small><input class="q" type="number" value="${p.rate}" onchange="upP('${p.id}','rate',this.value)"><small class="${p.stock<=5?'low':''}">Stock</small><input class="q" type="number" value="${p.stock}" onchange="upP('${p.id}','stock',this.value)"></div></div>`).join('')}
+function addP(){const n=$('#pn').value.trim(),u=$('#pu').value.trim();if(!n||!u)return alert('Name and unit required');
+  db.collection('products').add({name:n,unit:u,rate:+$('#pr').value||0,stock:+$('#ps').value||0}).catch(er)}
+function upP(id,f,v){db.doc('products/'+id).update({[f]:Math.max(0,+v||0)}).catch(er)}
+function delP(id){if(confirm('Delete product?'))db.doc('products/'+id).delete().catch(er)}
+// ---- salesmen
+function vStaff(){return `<div class="c g"><b>Add salesman</b><input id="sn" placeholder="Full name"><input id="su" placeholder="Username (e.g. ram)" autocapitalize="none"><input id="sw" placeholder="Password (min 6 characters)"><button onclick="addS()">Create account</button></div>`+
+  staff.map(s=>`<div class="c r"><div><b>${esc(s.name)}</b><br><small class="mu">username: ${esc(s.username)}</small></div></div>`).join('')+
+  '<p class="mu"><small>To remove a salesman, delete the user in Firebase → Authentication.</small></p>'}
+async function addS(){const n=$('#sn').value.trim(),u=$('#su').value.trim().toLowerCase().replace(/[^a-z0-9._]/g,''),p=$('#sw').value;
+  if(!n||!u||p.length<6)return alert('Fill all fields; password min 6');
+  let app2;try{app2=firebase.initializeApp(cfg,'s'+Date.now());const c=await app2.auth().createUserWithEmailAndPassword(u+DOM,p);
+    await db.doc('users/'+c.user.uid).set({name:n,username:u});alert('Salesman created: '+u)}catch(e){alert(e.message)}finally{if(app2)app2.delete()}}
+// ---- backup
+function vBackup(){return `<div class="c g"><b>Backup</b><p class="mu">Downloads all products, orders and salesmen in one file. Do this every week and save it to Google Drive.</p><button onclick="backup()">Download backup</button></div>`}
+async function backup(){try{const o={at:new Date().toISOString()};for(const c of['products','orders','users']){const s=await db.collection(c).get();o[c]=s.docs.map(d=>({id:d.id,...d.data()}))}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(o,null,1)],{type:'application/json'}));a.download='backup-'+new Date().toISOString().slice(0,10)+'.json';a.click()}catch(e){er(e)}}
+</script></body></html>
