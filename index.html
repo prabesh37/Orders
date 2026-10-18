@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ffffff"><title>HISABKITAB KOLORO MISTE</title>
+<meta name="theme-color" content="#1d4ed8"><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><title>HISABKITAB KOLORO MISTE</title>
 <style>
 :root{--bg:#fff;--cd:#fff;--tx:#111827;--mu:#6b7280;--ac:#1d4ed8;--bd:#e5e7eb;--er:#dc2626;--wa:#6b7280}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
@@ -54,7 +54,7 @@ function hideSplash(){const s=document.getElementById('splash');if(s&&!s._gone){
 document.addEventListener('focusin',e=>{if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))setTimeout(()=>e.target.scrollIntoView({block:'center',behavior:'smooth'}),300)});
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const rs=n=>'Rs '+(+n||0).toLocaleString();
-let me=null,isAdmin=false,tab='new',prods=[],orders=[],staff=[],cart={},shop='',pq='',unsubs=[],mode='salesman',editId=null,disp=[],dImg='',dThumb='',dBill='',dNote='',dOrder='';
+let me=null,isAdmin=false,tab='new',prods=[],orders=[],staff=[],cart={},shop='',pq='',unsubs=[],mode='salesman',editId=null,disp=[],dImg='',dThumb='',dBill='',dNote='',dOrder='',bsd='';
 auth.onAuthStateChanged(async u=>{unsubs.forEach(f=>f());unsubs=[];me=u;
   if(!u){$('#n').innerHTML='';$('#me').innerHTML='';return login()}
   isAdmin=u.email===ADMIN;let name='Admin';
@@ -88,39 +88,38 @@ function draw(){if(!me)return;document.querySelector('header').style.display='';
 const total=()=>prods.reduce((a,p)=>a+(cart[p.id]||0)*p.rate,0),count=()=>Object.keys(cart).length;
 const barTxt=()=>count()+' items · '+rs(total());
 function vNew(){
-  const rows=prods.map(p=>`<div class="c r pr" data-n="${esc(p.name.toLowerCase())}" style="${pq&&!p.name.toLowerCase().includes(pq)?'display:none':''}"><div><b>${esc(p.name)}</b><br><small class="mu">${rs(p.rate)} / ${esc(p.unit)} · <span class="${p.stock<=5?'low':''}">${p.stock} in stock</span></small></div><div class="sp"><button class="st" onclick="stepQ('${p.id}',-1)">−</button><input id="q_${p.id}" type="number" min="0" inputmode="decimal" placeholder="0" value="${cart[p.id]||''}" onchange="setQ('${p.id}',this.value)"><button class="st" onclick="stepQ('${p.id}',1)">+</button></div></div>`).join('');
+  const rows=prods.map(p=>`<div class="c r pr" data-n="${esc(p.name.toLowerCase())}" style="${pq&&!p.name.toLowerCase().includes(pq)?'display:none':''}"><div><b>${esc(p.name)}</b><br><small class="mu">${rs(p.rate)} / ${esc(p.unit)} · ${p.stock==null?'<span class="mu">stock not entered</span>':`<span class="${p.stock<=5?'low':''}">${p.stock} in stock</span>`}</small></div><div class="sp"><button class="st" onclick="stepQ('${p.id}',-1)">−</button><input id="q_${p.id}" type="number" min="0" inputmode="decimal" placeholder="0" value="${cart[p.id]||''}" onchange="setQ('${p.id}',this.value)"><button class="st" onclick="stepQ('${p.id}',1)">+</button></div></div>`).join('');
   return (editId?`<div class="c r"><b>Editing order</b><button class="s" onclick="cancelEdit()">Stop editing</button></div>`:'')+
-  `<div class="c g"><input placeholder="Shop / customer name" value="${esc(shop)}" oninput="shop=this.value"><input placeholder="🔍 Search product" value="${esc(pq)}" oninput="filt(this.value)"></div>`+
+  `<div class="c g"><input placeholder="Shop / customer name" value="${esc(shop)}" oninput="shop=this.value"><input placeholder="Nepali date (BS), e.g. 2083-07-02" value="${esc(bsd)}" oninput="bsd=this.value"><input placeholder="🔍 Search product" value="${esc(pq)}" oninput="filt(this.value)"></div>`+
   (rows||'<p class="mu">No products yet.</p>')+
   (isAdmin?'':`<details class="c"><summary>＋ Add a new product</summary><div class="g" style="margin-top:8px"><input id="pn" placeholder="Product name"><input id="pu" placeholder="Unit (kg, bag, litre)"><input id="pr" type="number" inputmode="decimal" placeholder="Rate"><button onclick="addP()">Save product</button><small class="mu">The admin adds the stock.</small></div></details>`)+
   `<div id="bar" class="r"><b id="tot">${barTxt()}</b><button onclick="place()">${editId?'Save changes':'Submit order'}</button></div>`}
 function stepQ(id,d){const i=$('#q_'+id),v=Math.max(0,(+i.value||0)+d);i.value=v||'';setQ(id,v)}
 function filt(v){pq=v.toLowerCase().trim();document.querySelectorAll('.pr').forEach(e=>e.style.display=(!pq||e.dataset.n.includes(pq))?'':'none')}
-function setQ(id,v){v=+v;const p=prods.find(x=>x.id===id);if(v>0){if(p&&v>p.stock){alert('Only '+p.stock+' '+p.unit+' in stock');delete cart[id];return draw()}cart[id]=v}else delete cart[id];$('#tot').textContent=barTxt()}
+function setQ(id,v){v=+v;const p=prods.find(x=>x.id===id);if(v>0){if(p&&p.stock!=null&&v>p.stock&&!confirm('Only '+p.stock+' '+p.unit+' in stock. Bill anyway?')){delete cart[id];return draw()}cart[id]=v}else delete cart[id];$('#tot').textContent=barTxt()}
 async function place(){if(!shop.trim())return alert('Enter shop name');
   const items=prods.filter(p=>cart[p.id]>0).map(p=>({pid:p.id,name:p.name,unit:p.unit,rate:p.rate,qty:cart[p.id]}));if(!items.length)return alert('Add quantities for at least one product');
-  const d={shop:shop.trim(),items,total:items.reduce((a,i)=>a+i.rate*i.qty,0)};
+  const d={shop:shop.trim(),items,total:items.reduce((a,i)=>a+i.rate*i.qty,0),bsDate:bsd.trim()};
   try{if(editId)await db.doc('orders/'+editId).update(d);else await db.collection('orders').add({...d,status:'pending',uid:me.uid,sname:me.dn,at:Date.now()});
-    cart={};shop='';pq='';editId=null;tab=isAdmin?'orders':'mine';draw()}catch(e){er(e)}}
-function editO(id){const o=orders.find(x=>x.id===id);if(!o)return;cart={};o.items.forEach(i=>cart[i.pid]=i.qty);shop=o.shop;editId=id;tab='new';draw()}
-function cancelEdit(){cart={};shop='';editId=null;draw()}
+    cart={};shop='';bsd='';pq='';editId=null;tab=isAdmin?'orders':'mine';draw()}catch(e){er(e)}}
+function editO(id){const o=orders.find(x=>x.id===id);if(!o)return;cart={};o.items.forEach(i=>cart[i.pid]=i.qty);shop=o.shop;bsd=o.bsDate||'';editId=id;tab='new';draw()}
+function cancelEdit(){cart={};shop='';bsd='';editId=null;draw()}
 // ---- orders
 function needBackup(){try{const t=+localStorage.getItem('lb');return !t||Date.now()-t>6048e5}catch(e){return false}}
 function vOrders(all){let h=(isAdmin&&needBackup())?`<div class="c" style="border-color:var(--er)"><b class="low">⚠ No backup in the last 7 days</b><br><small>Open the Backup tab and download the Excel file.</small></div>`:'';
   if(!orders.length)return h+'<p class="mu">No orders yet.</p>';
   return h+orders.map(o=>{const pend=o.status==='pending';return `<div class="c"><div class="r"><b>${esc(o.shop)}</b><span><span class="b ${o.status}">${o.status}</span>${disp.some(x=>x.oid===o.id)?' <span class="b confirmed">dispatched</span>':''}</span></div>
-  <small class="mu">${new Date(o.at).toLocaleString()} · ${esc(o.sname)}</small>
+  <small class="mu">${new Date(o.at).toLocaleString()}${o.bsDate?' · BS '+esc(o.bsDate):''} · ${esc(o.sname)}</small>
   <div style="margin:8px 0">${o.items.map(i=>`${esc(i.name)} — ${i.qty} ${esc(i.unit)} × ${rs(i.rate)}`).join('<br>')}</div>
   <div class="r"><b>${rs(o.total)}</b></div><div class="w">${pend?`<button class="s" onclick="editO('${o.id}')">Edit</button>`:''}${(pend||isAdmin)?`<button class="d" onclick="delO('${o.id}')">Delete</button>`:''}${isAdmin&&pend?`<button onclick="conf('${o.id}')">Confirm</button><button class="d" onclick="cancelO('${o.id}')">Cancel order</button>`:''}</div></div>`}).join('')}
 async function conf(id){try{await db.runTransaction(async t=>{const or=db.doc('orders/'+id),o=await t.get(or);if(o.data().status!=='pending')return;
   const ps=await Promise.all(o.data().items.map(i=>t.get(db.doc('products/'+i.pid))));
-  o.data().items.forEach((i,k)=>{if(!ps[k].exists||ps[k].data().stock<i.qty)throw Error('Not enough stock: '+i.name)});
-  o.data().items.forEach((i,k)=>t.update(ps[k].ref,{stock:ps[k].data().stock-i.qty}));t.update(or,{status:'confirmed'})})}catch(e){alert(e.message)}}
+  o.data().items.forEach((i,k)=>{if(ps[k].exists&&ps[k].data().stock!=null)t.update(ps[k].ref,{stock:ps[k].data().stock-i.qty})});t.update(or,{status:'confirmed'})})}catch(e){alert(e.message)}}
 async function cancelO(id){if(confirm('Cancel this order?'))db.doc('orders/'+id).update({status:'cancelled'}).catch(er)}
 function delO(id){const o=orders.find(x=>x.id===id);if(!o)return;
   if(o.status==='confirmed'){if(!confirm('Delete this confirmed order? The stock will be returned.'))return;
     return askPw(async()=>{try{await db.runTransaction(async t=>{const or=db.doc('orders/'+id);const ps=await Promise.all(o.items.map(i=>t.get(db.doc('products/'+i.pid))));
-      o.items.forEach((i,k)=>{if(ps[k].exists)t.update(ps[k].ref,{stock:ps[k].data().stock+i.qty})});t.delete(or)})}catch(e){er(e)}})}
+      o.items.forEach((i,k)=>{if(ps[k].exists&&ps[k].data().stock!=null)t.update(ps[k].ref,{stock:ps[k].data().stock+i.qty})});t.delete(or)})}catch(e){er(e)}})}
   if(confirm('Delete this order?'))db.doc('orders/'+id).delete().catch(er)}
 function askPw(cb,onCancel){const w=document.createElement('div');w.style.cssText='position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;z-index:99;padding:20px';
   w.innerHTML='<div class="c g" style="width:100%;max-width:340px"><b>Enter admin password to confirm this change</b><input id="apw" type="password" placeholder="Admin password"><div class="r"><button class="s" id="apc">Cancel</button><button id="apo">Confirm</button></div><small class="low" id="ape"></small></div>';
@@ -133,7 +132,7 @@ function vProds(){return `<div class="c g"><b>Import from Excel</b><small class=
   <div class="c g"><b>Add product</b><input id="pn" placeholder="Product name"><div class="g2"><input id="pu" placeholder="Unit (kg, bag)"><input id="pr" type="number" inputmode="decimal" placeholder="Rate"></div><input id="ps" type="number" inputmode="decimal" placeholder="Opening stock"><button onclick="addP()">Save product</button></div>`+
   prods.map(p=>`<div class="c g"><div class="r" style="align-items:end"><label style="flex:1">Name<input value="${esc(p.name)}" onchange="upT('${p.id}','name',this.value,this)"></label><button class="d sm" onclick="delP('${p.id}')">Delete</button></div>
   <div class="g2"><label>Unit<input value="${esc(p.unit)}" onchange="upT('${p.id}','unit',this.value,this)"></label><label>Rate<input type="number" value="${p.rate}" onchange="upP('${p.id}','rate',this.value,this)"></label></div>
-  <div class="g2"><label>Stock ${p.stock<=5?'<span class="low">(low)</span>':''}<input id="st_${p.id}" type="number" value="${p.stock}"></label><button style="align-self:end" onclick="setStock('${p.id}')">Update stock</button></div></div>`).join('')}
+  <div class="g2"><label>Stock ${p.stock!=null&&p.stock<=5?'<span class="low">(low)</span>':''}${p.stock==null?'<span class="mu">(not entered)</span>':''}<input id="st_${p.id}" type="number" placeholder="not entered" value="${p.stock??''}"></label><button style="align-self:end" onclick="setStock('${p.id}')">Update stock</button></div></div>`).join('')}
 function importX(){const f=$('#xf').files[0];if(!f)return alert('Choose an Excel file first');
   const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array'});const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
     const get=(o,k)=>{const x=Object.keys(o).find(y=>y.trim().toLowerCase()===k);return x===undefined?undefined:o[x]};
@@ -142,16 +141,16 @@ function importX(){const f=$('#xf').files[0];if(!f)return alert('Choose an Excel
     if(!confirm('Import '+list.length+' products?'))return;
     askPw(async()=>{let up=0,nw=0;try{for(const x of list){const p=prods.find(y=>y.name.toLowerCase()===x.n.toLowerCase()),d={};
       if(x.u!==undefined&&String(x.u).trim())d.unit=String(x.u).trim();if(x.r!==undefined&&x.r!=='')d.rate=Math.max(0,+x.r||0);if(x.s!==undefined&&x.s!=='')d.stock=Math.max(0,+x.s||0);
-      if(p){await db.doc('products/'+p.id).update(d);up++}else{await db.collection('products').add({name:x.n,unit:d.unit||'pcs',rate:d.rate||0,stock:d.stock||0});nw++}}
+      if(p){await db.doc('products/'+p.id).update(d);up++}else{await db.collection('products').add({name:x.n,unit:d.unit||'pcs',rate:d.rate||0,stock:d.stock??null});nw++}}
       alert('Done: '+up+' updated, '+nw+' new')}catch(e){er(e)}})}catch(e){er(e)}};r.readAsArrayBuffer(f)}
 function tmpl(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Product','Unit','Rate','Stock'],['Cattle feed','bag (50kg)',2400,40],['Rice','kg',95,500]]),'Products');XLSX.writeFile(wb,'products-template.xlsx')}
 function addP(){const n=$('#pn').value.trim(),u=$('#pu').value.trim(),se=$('#ps');if(!n||!u)return alert('Name and unit required');
-  db.collection('products').add({name:n,unit:u,rate:+$('#pr').value||0,stock:se?(+se.value||0):0}).then(()=>alert('Product saved')).catch(er)}
+  db.collection('products').add({name:n,unit:u,rate:+$('#pr').value||0,stock:se&&se.value!==''?(+se.value):null}).then(()=>alert('Product saved')).catch(er)}
 function upP(id,f,v,el){const old=prods.find(x=>x.id===id)[f],nv=Math.max(0,+v||0);if(nv===old)return;
   askPw(()=>db.doc('products/'+id).update({[f]:nv}).catch(er),()=>{if(el)el.value=old})}
 function upT(id,f,v,el){const old=prods.find(x=>x.id===id)[f];v=v.trim();if(!v||v===old)return(el&&(el.value=old));
   askPw(()=>db.doc('products/'+id).update({[f]:v}).catch(er),()=>{if(el)el.value=old})}
-function setStock(id){const el=$('#st_'+id),old=prods.find(x=>x.id===id).stock,v=Math.max(0,+el.value||0);if(v===old)return;askPw(()=>db.doc('products/'+id).update({stock:v}).then(()=>alert('Stock updated')).catch(er),()=>el.value=old)}
+function setStock(id){const el=$('#st_'+id),old=prods.find(x=>x.id===id).stock,raw=el.value.trim(),v=raw===''?null:Math.max(0,+raw);if(v===old)return;askPw(()=>db.doc('products/'+id).update({stock:v}).then(()=>alert('Stock updated')).catch(er),()=>el.value=old)}
 function delP(id){if(confirm('Delete this product?'))askPw(()=>db.doc('products/'+id).delete().catch(er))}
 // ---- salesmen
 function vStaff(){return `<div class="c g"><b>Add salesman</b><input id="sn" placeholder="Full name"><input id="su" placeholder="Username (e.g. ram)" autocapitalize="none"><input id="sw" placeholder="Password (min 6 characters)"><button onclick="addS()">Create account</button></div>`+
@@ -206,7 +205,7 @@ async function fetchAll(){const g=async c=>(await db.collection(c).get()).docs.m
 const want=()=>({stock:$('#ex_stock').checked,orders:$('#ex_orders').checked,disp:$('#ex_disp').checked,staff:$('#ex_staff').checked});
 function rowsOf(D){return{
   stock:D.P.map(p=>({Product:p.name,Unit:p.unit,Rate:p.rate,Stock:p.stock,'Stock value':p.rate*p.stock})),
-  orders:D.O.flatMap(o=>o.items.map(i=>({Date:fmtD(o.at),Shop:o.shop,Salesman:o.sname,Status:o.status,Product:i.name,Unit:i.unit,Qty:i.qty,Rate:i.rate,Amount:i.qty*i.rate,'Order total':o.total}))),
+  orders:D.O.flatMap(o=>o.items.map(i=>({Date:fmtD(o.at),'Nepali date':o.bsDate||'',Shop:o.shop,Salesman:o.sname,Status:o.status,Product:i.name,Unit:i.unit,Qty:i.qty,Rate:i.rate,Amount:i.qty*i.rate,'Order total':o.total}))),
   disp:D.D.map(x=>({Date:fmtD(x.at),'Bill number':x.bill||'',Shop:x.shop||'',Note:x.note||'','Added by':x.by||''})),
   staff:D.S.map(x=>({Name:x.name,Username:x.id}))}}
 function summaryOf(D){const conf=D.O.filter(o=>o.status==='confirmed'),pend=D.O.filter(o=>o.status==='pending');
