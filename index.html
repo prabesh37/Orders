@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAT Bill Maker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{--bg:#eef1f4;--card:#fff;--ink:#14212b;--mute:#5d6b76;--line:#cfd7de;--acc:#0f6b4f;--err:#a32020}
+@media(prefers-color-scheme:dark){:root{--bg:#10171c;--card:#182229;--ink:#e8eef2;--mute:#93a3ae;--line:#2c3a43;--acc:#4fc79c;--err:#ff8a8a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:1.5rem;margin:8px 0 16px}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+h2{font-size:1.05rem;margin:0 0 10px}
+label{display:block;font-size:.85rem;color:var(--mute);margin-bottom:3px}
+input,select,button,textarea{font:inherit;color:inherit}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+button{padding:10px 14px;border:1px solid var(--acc);border-radius:6px;background:var(--acc);color:#fff;cursor:pointer;font-weight:600}
+@media(prefers-color-scheme:dark){button{color:#07241a}}
+button.ghost{background:transparent;color:var(--acc)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{border:1px solid var(--line);padding:5px;text-align:left}
+td input{padding:6px;background:var(--card)}
+td.n{text-align:right;white-space:nowrap}
+.sum td{font-weight:600}
+#prev{max-width:100%;max-height:340px;border-radius:6px;margin-top:8px}
+#msg{color:var(--mute);margin-top:8px;min-height:1.2em}
+#msg.err{color:var(--err)}
+.sm{font-size:.82rem;color:var(--mute)}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10;display:flex;flex-direction:column}
+#modal[hidden]{display:none}
+.mbar{display:flex;justify-content:space-between;gap:8px;padding:10px;background:var(--card)}
+.mwrap{flex:1;overflow:auto;padding:10px}
+#sheet{background:#fff;color:#111;width:100%;max-width:794px;min-height:min(1123px,140vw);margin:0 auto;padding:4%;font-size:clamp(11px,2.4vw,15px)}
+#sheet h3{text-align:center;font-size:1.6em;margin:0 0 .6em}
+#sheet .hd{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;margin-bottom:.5em}
+#sheet table{min-width:0;margin-top:.8em}
+#sheet th,#sheet td{border:1px solid #222;padding:.5em;color:#111}
+#sheet th{background:#e6e6e6}
+#sheet td.n,#sheet th.n{text-align:right}
+#sheet .tot{width:62%;margin-left:auto;font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<h1>VAT Bill Maker</h1>
+
+<section>
+<h2>1. Estimate photo</h2>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="file" accept="image/*" hidden>
+<div class="btns" style="margin-top:0">
+<button id="bcam">Take photo</button>
+<button id="bgal" class="ghost">Choose from gallery</button>
+</div>
+<img id="prev" alt="" hidden>
+<div class="btns">
+<button id="read">Read bill with AI</button>
+<button class="ghost" id="add">Add item by hand</button>
+</div>
+<div id="msg"></div>
+<details style="margin-top:10px"><summary>AI settings (saved only in this browser)</summary>
+<div class="row" style="margin-top:8px">
+<div><label for="key">Gemini API key</label><input id="key" type="password" autocomplete="off"></div>
+<div><label for="model">Model</label><input id="model" value="gemini-2.5-flash"></div>
+</div>
+</details>
+</section>
+
+<section>
+<h2>2. Bill details</h2>
+<div class="row">
+<div><label for="ref">Ref no.</label><input id="ref"></div>
+<div><label for="date">Date</label><input id="date" type="date"></div>
+<div><label for="party">Party name</label><input id="party"></div>
+<div><label for="disc">Discount in total (Rs)</label><input id="disc" type="number" step="0.01" value="0"></div>
+</div>
+<p class="sm">Discount given inside the rate? Put the line amount in the "Estimate amount" column instead, and the final rate is worked out from it.</p>
+</section>
+
+<section>
+<h2>3. Items</h2>
+<div class="scroll"><table id="t">
+<thead><tr><th>Item</th><th>Qty</th><th>Estimate rate</th><th>Estimate amount</th><th>Exempt</th><th>Final rate</th><th>Amount</th><th></th></tr></thead>
+<tbody></tbody>
+</table></div>
+<table class="sum" style="margin-top:12px;min-width:0"><tbody id="s"></tbody></table>
+<div class="btns"><button id="pv" class="ghost">Preview full bill</button><button id="pdf">Download PDF</button></div>
+</section>
+<div id="modal" hidden>
+<div class="mbar"><button id="mclose" class="ghost">Close</button><button id="mdl">Download PDF</button></div>
+<div class="mwrap"><div id="sheet"></div></div>
+</div>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const r2=n=>Math.round((n+Number.EPSILON)*100)/100;
+const f2=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const EXEMPT=/chiura|chhurpi|churpi|chhurpi/i;
+let items=[],imgData=null,imgType='';
+const LS=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}};
+const SS=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+$('key').value=LS('gkey');if(LS('gmodel'))$('model').value=LS('gmodel');
+$('key').onchange=()=>SS('gkey',$('key').value);
+$('model').onchange=()=>SS('gmodel',$('model').value);
+$('date').value=new Date().toISOString().slice(0,10);
+
+function msg(t,e){const m=$('msg');m.textContent=t;m.className=e?'err':''}
+
+$('bcam').onclick=()=>$('cam').click();
+$('bgal').onclick=()=>$('file').click();
+$('cam').onchange=$('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    $('prev').src=rd.result;$('prev').hidden=false;
+    imgData=rd.result.split(',')[1];imgType=f.type||'image/jpeg';
+    msg('Photo added. Tap "Read bill with AI".');
+  };
+  rd.readAsDataURL(f);
+};
+
+$('add').onclick=()=>{items.push({name:'',qty:1,rate:0,amt:'',ex:false});draw()};
+
+$('read').onclick=async()=>{
+  if(!imgData)return msg('Choose a photo first.',1);
+  const key=$('key').value.trim();
+  if(!key)return msg('Add your Gemini API key under AI settings.',1);
+  msg('Reading the bill...');
+  const prompt='This is a photo of an "Invoice Confirmation Receipt" estimate. Return ONLY JSON: {"ref":"","date":"YYYY-MM-DD or empty","party":"","discount":0,"items":[{"name":"","qty":0,"rate":0,"amount":0}]}. qty, rate and amount are numbers exactly as printed (rates include VAT). "discount" is a separate discount line if one exists, else 0. Panda Chips: convert pieces to kg and give rate per kg: pieces at @50 -> qty = pieces x 0.080, rate = 50/0.080; pieces at @10 -> qty = pieces x 0.018, rate = 10/0.018. Keep amount as printed.';
+  try{
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent($('model').value.trim())+':generateContent?key='+encodeURIComponent(key),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:imgType,data:imgData}}]}],generationConfig:{responseMimeType:'application/json'}})
+    });
+    const j=await res.json();
+    if(!res.ok)throw new Error(j.error&&j.error.message||'Request failed');
+    const txt=j.candidates[0].content.parts.map(p=>p.text||'').join('').replace(/```json|```/g,'').trim();
+    const d=JSON.parse(txt);
+    if(d.ref)$('ref').value=d.ref;
+    if(d.date&&/^\d{4}-\d\d-\d\d$/.test(d.date))$('date').value=d.date;
+    if(d.party)$('party').value=d.party;
+    $('disc').value=d.discount||0;
+    items=(d.items||[]).map(x=>({name:x.name||'',qty:+x.qty||0,rate:+x.rate||0,amt:x.amount?+x.amount:'',ex:EXEMPT.test(x.name||'')}));
+    draw();msg('Done. Check every row against the photo, then download.');
+  }catch(err){msg('Could not read the bill: '+err.message,1)}
+};
+
+function calc(){
+  const rows=items.map(it=>({...it,est:it.amt!==''?+it.amt:r2(it.qty*it.rate)}));
+  const estTotal=rows.reduce((a,x)=>a+x.est,0);
+  const disc=+$('disc').value||0;
+  function build(mode){
+    return rows.map(x=>{
+      if(x.ex){const fr=x.qty?r2(x.est/x.qty):0;return {...x,fr,fa:r2(fr*x.qty)}}
+      const raw=x.qty?x.est/x.qty/1.13:0;
+      let fr=mode==='floor'?Math.floor(raw*100)/100:r2(raw);
+      const key=x.name.trim().toLowerCase()+'|'+x.est/(x.qty||1);
+      return {...x,fr,fa:r2(fr*x.qty)};
+    });
+  }
+  function tot(rs){
+    const tx=r2(rs.filter(x=>!x.ex).reduce((a,x)=>a+x.fa,0));
+    const ex=r2(rs.filter(x=>x.ex).reduce((a,x)=>a+x.fa,0));
+    const taxable=r2(tx-disc);
+    const vat=Math.floor(taxable*13)/100;
+    return {tx,ex,taxable,vat,total:r2(taxable+ex+vat),all:r2(tx+ex)};
+  }
+  let rs=build('round'),t=tot(rs);
+  if(t.total+disc>estTotal+0.001&&estTotal>0){const rs2=build('floor');rs=rs2;t=tot(rs)}
+  return {rs,t,disc,estTotal};
+}
+
+function draw(){
+  const tb=$('t').tBodies[0];tb.innerHTML='';
+  const {rs,t,disc}=calc();
+  items.forEach((it,i)=>{
+    const tr=document.createElement('tr');
+    const inp=(k,type,w)=>{const c=document.createElement('td');const e=document.createElement('input');e.type=type;if(type==='number')e.step='any';e.value=it[k];e.setAttribute('aria-label',k);e.oninput=()=>{it[k]=type==='number'?(e.value===''?'':+e.value):e.value;if(k==='name'&&EXEMPT.test(e.value)){it.ex=true}refresh()};if(w)e.style.minWidth=w;c.appendChild(e);return c};
+    tr.appendChild(inp('name','text','120px'));tr.appendChild(inp('qty','number','70px'));tr.appendChild(inp('rate','number','80px'));tr.appendChild(inp('amt','number','90px'));
+    const c=document.createElement('td');const cb=document.createElement('input');cb.type='checkbox';cb.checked=it.ex;cb.style.width='auto';cb.setAttribute('aria-label','VAT exempt');cb.onchange=()=>{it.ex=cb.checked;refresh()};c.appendChild(cb);tr.appendChild(c);
+    const a=document.createElement('td');a.className='n';a.textContent=f2(rs[i].fr);tr.appendChild(a);
+    const b=document.createElement('td');b.className='n';b.textContent=f2(rs[i].fa);tr.appendChild(b);
+    const d=document.createElement('td');const x=document.createElement('button');x.className='ghost';x.textContent='Remove';x.onclick=()=>{items.splice(i,1);draw()};d.appendChild(x);tr.appendChild(d);
+    tb.appendChild(tr);
+  });
+  sum(t,disc);
+}
+function refresh(){ // update numbers without rebuilding inputs (keeps focus)
+  const {rs,t,disc}=calc();
+  [...$('t').tBodies[0].rows].forEach((tr,i)=>{if(rs[i]){tr.cells[5].textContent=f2(rs[i].fr);tr.cells[6].textContent=f2(rs[i].fa)}});
+  sum(t,disc);
+}
+function sum(t,disc){
+  const L=[['1. Total amount',t.all],['2. Discount',disc],['3. Tax exempt',t.ex],['4. Taxable amount',t.taxable],['5. Tax (VAT 13%)',t.vat],['6. Total',t.total]];
+  $('s').innerHTML=L.map(l=>'<tr><td>'+l[0]+'</td><td class="n">'+f2(l[1])+'</td></tr>').join('');
+}
+$('disc').oninput=refresh;
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$('pv').onclick=()=>{
+  if(!items.length)return msg('Add items first.',1);
+  const {rs,t,disc}=calc();
+  const L=[['1. Total amount',t.all],['2. Discount',disc],['3. Tax exempt',t.ex],['4. Taxable amount',t.taxable],['5. Tax (VAT 13%)',t.vat],['6. Total',t.total]];
+  $('sheet').innerHTML='<h3>VAT BILL</h3><div class="hd"><span>Ref: '+esc($('ref').value||'-')+'</span><span>Date: '+esc($('date').value)+'</span></div><div>Party: '+esc($('party').value||'-')+'</div>'
+  +'<table><thead><tr><th>S.N.</th><th>Item</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead><tbody>'
+  +rs.map((x,i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(x.name)+(x.ex?' (exempt)':'')+'</td><td class="n">'+x.qty+'</td><td class="n">'+f2(x.fr)+'</td><td class="n">'+f2(x.fa)+'</td></tr>').join('')
+  +'</tbody></table><table class="tot"><tbody>'+L.map(l=>'<tr><td>'+l[0]+'</td><td class="n">'+f2(l[1])+'</td></tr>').join('')+'</tbody></table>';
+  $('modal').hidden=false;
+};
+$('mclose').onclick=()=>{$('modal').hidden=true};
+$('mdl').onclick=()=>$('pdf').click();
+$('pdf').onclick=()=>{
+  if(!items.length)return msg('Add items first.',1);
+  const {rs,t,disc}=calc();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=10;
+  doc.setFontSize(22);doc.setFont('helvetica','bold');doc.text('VAT BILL',W/2,16,{align:'center'});
+  doc.setFontSize(12);doc.setFont('helvetica','normal');
+  doc.text('Ref: '+($('ref').value||'-'),M,25);
+  doc.text('Date: '+$('date').value,W-M,25,{align:'right'});
+  doc.text('Party: '+($('party').value||'-'),M,32);
+  const body=rs.map((x,i)=>[i+1,x.name+(x.ex?' (exempt)':''),String(x.qty),f2(x.fr),f2(x.fa)]);
+  const n=body.length;
+  const fs=n<=10?14:n<=16?12:10, pad=n<=10?4.5:n<=16?3.2:2.2;
+  doc.autoTable({startY:37,head:[['S.N.','Item','Qty','Rate','Amount']],body,theme:'grid',
+    styles:{fontSize:fs,cellPadding:pad,lineColor:[40,40,40],lineWidth:.3,textColor:20},
+    headStyles:{fillColor:[230,230,230],textColor:20,fontStyle:'bold'},
+    columnStyles:{0:{cellWidth:15},2:{halign:'right',cellWidth:28},3:{halign:'right',cellWidth:32},4:{halign:'right',cellWidth:36}},
+    margin:{left:M,right:M}});
+  const L=[['1. Total amount',t.all],['2. Discount',disc],['3. Tax exempt',t.ex],['4. Taxable amount',t.taxable],['5. Tax (VAT 13%)',t.vat],['6. Total',t.total]];
+  doc.autoTable({startY:doc.lastAutoTable.finalY+6,body:L.map(l=>[l[0],f2(l[1])]),theme:'grid',
+    styles:{fontSize:fs+1,cellPadding:pad,lineColor:[40,40,40],lineWidth:.3,textColor:20,fontStyle:'bold'},
+    columnStyles:{1:{halign:'right',cellWidth:50}},margin:{left:W-M-130,right:M}});
+  doc.save('VAT-Bill-'+(($('ref').value||'bill').replace(/[^\w-]+/g,'_'))+'.pdf');
+};
+draw();
+</script>
+</body>
+</html>
